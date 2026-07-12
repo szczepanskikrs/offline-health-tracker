@@ -50,9 +50,12 @@ class MainActivity : ComponentActivity() {
         val osmConfig = org.osmdroid.config.Configuration.getInstance()
         osmConfig.load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
         osmConfig.userAgentValue = packageName
-        val osmCacheDir = java.io.File(cacheDir, "osmdroid")
+        val osmCacheDir = java.io.File(filesDir, "osmdroid")
+        osmCacheDir.mkdirs()
+        val tileCacheDir = java.io.File(osmCacheDir, "tiles")
+        tileCacheDir.mkdirs()
         osmConfig.osmdroidBasePath = osmCacheDir
-        osmConfig.osmdroidTileCache = java.io.File(osmCacheDir, "tiles")
+        osmConfig.osmdroidTileCache = tileCacheDir
         
         // Setup ViewModel
         val factory = HealthTrackerViewModelFactory(this)
