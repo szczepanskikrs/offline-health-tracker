@@ -125,13 +125,13 @@ fun HeatmapGrid(
                             val dayExercises = exercisesGrouped[dateStr] ?: emptyList()
                             val totalActivity = dayMeasurements.size + dayExercises.size
 
-                            // Color map representing activity frequency
+                            // Color map representing activity frequency (dark -> lower, light -> higher)
                             val cellColor = when {
-                                totalActivity == 0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                totalActivity == 1 -> Color(0xFFC8E6C9) // Light green
-                                totalActivity == 2 -> Color(0xFF81C784) // Medium light green
-                                totalActivity == 3 -> Color(0xFF4CAF50) // Green
-                                else -> Color(0xFF2E7D32) // Dark green
+                                totalActivity == 0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                totalActivity == 1 -> Color(0xFF14532D) // Dark green
+                                totalActivity == 2 -> Color(0xFF16A34A) // Medium green
+                                totalActivity == 3 -> Color(0xFF4ADE80) // Bright/light green
+                                else -> Color(0xFF86EFAC) // Very bright/light green
                             }
 
                             Box(
@@ -163,11 +163,11 @@ fun HeatmapGrid(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             val intensities = listOf(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                Color(0xFFC8E6C9),
-                Color(0xFF81C784),
-                Color(0xFF4CAF50),
-                Color(0xFF2E7D32)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                Color(0xFF14532D),
+                Color(0xFF16A34A),
+                Color(0xFF4ADE80),
+                Color(0xFF86EFAC)
             )
             intensities.forEach { color ->
                 Box(
