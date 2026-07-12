@@ -178,6 +178,7 @@ fun WalksScreen(
                         if (points.isNotEmpty()) {
                             AndroidView(
                                 factory = { context ->
+                                    Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                                     Configuration.getInstance().userAgentValue = context.packageName
                                     MapView(context).apply {
                                         setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
@@ -372,6 +373,7 @@ fun WalkTrackerMap(
         // Map View
         AndroidView(
             factory = { ctx ->
+                Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                 Configuration.getInstance().userAgentValue = ctx.packageName
                 MapView(ctx).apply {
                     setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
