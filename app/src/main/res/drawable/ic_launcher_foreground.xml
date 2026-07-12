@@ -7,8 +7,8 @@
     <group
         android:pivotX="24"
         android:pivotY="24"
-        android:scaleX="0.75"
-        android:scaleY="0.75">
+        android:scaleX="0.60"
+        android:scaleY="0.60">
 
         <!-- 1. Green skin face fill (using closed SVG boundary coordinates for pixel-perfect fit) -->
         <path
