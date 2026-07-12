@@ -302,6 +302,7 @@ fun WalkTrackerMap(
     var distanceKm by remember { mutableStateOf(0.0) }
     val pathPoints = remember { mutableStateListOf<GeoPoint>() }
     var lastLocation by remember { mutableStateOf<Location?>(null) }
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     
     // Live save dialog state
     var showSaveDialog by remember { mutableStateOf(false) }
@@ -378,12 +379,15 @@ fun WalkTrackerMap(
                     onResume()
                     setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
-                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
+                    // Disable built-in zoom controls to prevent overlap with start button
+                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
                     controller.setZoom(16.0)
                     
                     // Initial Warsaw center
                     val defaultPt = GeoPoint(52.2297, 21.0122)
                     controller.setCenter(defaultPt)
+                    
+                    mapViewInstance = this
                 }
             },
             update = { mapView ->
@@ -509,6 +513,51 @@ fun WalkTrackerMap(
                         Text("Zapisz", fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+
+        // Vertical Floating Control Panel (Zoom In, Zoom Out, My Location)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 100.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Zoom In
+            FloatingActionButton(
+                onClick = { mapViewInstance?.let { it.controller.zoomIn() } },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Przybliż")
+            }
+
+            // Zoom Out
+            FloatingActionButton(
+                onClick = { mapViewInstance?.let { it.controller.zoomOut() } },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(Icons.Default.Remove, contentDescription = "Oddal")
+            }
+
+            // My Location
+            FloatingActionButton(
+                onClick = {
+                    val lastLoc = lastLocation
+                    if (lastLoc != null) {
+                        mapViewInstance?.controller?.animateTo(GeoPoint(lastLoc.latitude, lastLoc.longitude))
+                    } else if (pathPoints.isNotEmpty()) {
+                        mapViewInstance?.controller?.animateTo(pathPoints.last())
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Moja lokalizacja")
             }
         }
     }
