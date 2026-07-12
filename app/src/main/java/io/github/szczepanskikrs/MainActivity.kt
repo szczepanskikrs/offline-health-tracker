@@ -45,6 +45,14 @@ class MainActivity : ComponentActivity() {
         
         // Initialize Notification Channel
         NotificationHelper.createNotificationChannel(this)
+
+        // Initialize OSMDroid Configuration for Scoped Storage compatibility
+        val osmConfig = org.osmdroid.config.Configuration.getInstance()
+        osmConfig.load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
+        osmConfig.userAgentValue = packageName
+        val osmCacheDir = java.io.File(cacheDir, "osmdroid")
+        osmConfig.osmdroidBasePath = osmCacheDir
+        osmConfig.osmdroidTileCache = java.io.File(osmCacheDir, "tiles")
         
         // Setup ViewModel
         val factory = HealthTrackerViewModelFactory(this)

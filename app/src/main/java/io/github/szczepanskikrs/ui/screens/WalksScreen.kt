@@ -124,7 +124,8 @@ fun WalksScreen(
                 } else {
                     WalkTrackerMap(
                         viewModel = viewModel,
-                        exerciseTypes = exerciseTypes
+                        exerciseTypes = exerciseTypes,
+                        modifier = Modifier.fillMaxSize().weight(1f)
                     )
                 }
             } else {
@@ -291,7 +292,8 @@ fun LocationPermissionRequestScreen(onGrantRequest: () -> Unit) {
 @Composable
 fun WalkTrackerMap(
     viewModel: HealthTrackerViewModel,
-    exerciseTypes: List<io.github.szczepanskikrs.data.ExerciseType>
+    exerciseTypes: List<io.github.szczepanskikrs.data.ExerciseType>,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
@@ -369,7 +371,7 @@ fun WalkTrackerMap(
 
     val caloriesBurned = distanceKm * 60.0
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         // Map View
         AndroidView(
             factory = { ctx ->
