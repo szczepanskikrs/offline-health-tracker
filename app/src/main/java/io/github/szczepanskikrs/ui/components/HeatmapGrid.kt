@@ -89,11 +89,10 @@ fun HeatmapGrid(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(scrollState)
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Day names labels on the left of the grid (Mon, Wed, Fri)
+            // Day names labels on the left of the grid (Mon, Wed, Fri) - NOT SCROLLABLE
             Column(
                 modifier = Modifier
                     .padding(end = 8.dp)
@@ -112,37 +111,43 @@ fun HeatmapGrid(
                 }
             }
 
-            // Grid of cells
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                weeksList.forEach { week ->
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.height(180.dp)
-                    ) {
-                        week.forEach { date ->
-                            val dateStr = sdf.format(date)
-                            val dayMeasurements = measurementsGrouped[dateStr] ?: emptyList()
-                            val dayExercises = exercisesGrouped[dateStr] ?: emptyList()
-                            val totalActivity = dayMeasurements.size + dayExercises.size
+            // Grid of cells - SCROLLABLE
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    weeksList.forEach { week ->
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.height(180.dp)
+                        ) {
+                            week.forEach { date ->
+                                val dateStr = sdf.format(date)
+                                val dayMeasurements = measurementsGrouped[dateStr] ?: emptyList()
+                                val dayExercises = exercisesGrouped[dateStr] ?: emptyList()
+                                val totalActivity = dayMeasurements.size + dayExercises.size
 
-                            // Color map representing activity frequency (dark -> lower, light -> higher)
-                            val cellColor = when {
-                                totalActivity == 0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                totalActivity == 1 -> Color(0xFF14532D) // Dark green
-                                totalActivity == 2 -> Color(0xFF16A34A) // Medium green
-                                totalActivity == 3 -> Color(0xFF4ADE80) // Bright/light green
-                                else -> Color(0xFF86EFAC) // Very bright/light green
+                                // Color map representing activity frequency (dark -> lower, light -> higher)
+                                val cellColor = when {
+                                    totalActivity == 0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                    totalActivity == 1 -> Color(0xFF14532D) // Dark green
+                                    totalActivity == 2 -> Color(0xFF16A34A) // Medium green
+                                    totalActivity == 3 -> Color(0xFF4ADE80) // Bright/light green
+                                    else -> Color(0xFF86EFAC) // Very bright/light green
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(cellColor)
+                                        .clickable {
+                                            selectedDate = date
+                                        }
+                                )
                             }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(cellColor)
-                                    .clickable {
-                                        selectedDate = date
-                                    }
-                            )
                         }
                     }
                 }
