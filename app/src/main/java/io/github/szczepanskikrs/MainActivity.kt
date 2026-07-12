@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -34,6 +35,7 @@ import io.github.szczepanskikrs.ui.screens.ExercisesScreen
 import io.github.szczepanskikrs.ui.screens.HeatmapScreen
 import io.github.szczepanskikrs.ui.screens.MeasurementsScreen
 import io.github.szczepanskikrs.ui.screens.SettingsScreen
+import io.github.szczepanskikrs.ui.screens.WalksScreen
 import io.github.szczepanskikrs.ui.theme.HealthTrackerTheme
 import io.github.szczepanskikrs.utils.NotificationHelper
 
@@ -116,6 +118,7 @@ fun HealthTrackerApp(viewModel: HealthTrackerViewModel) {
         when (currentDestination) {
             AppDestinations.MEASUREMENTS -> MeasurementsScreen(viewModel, screenModifier)
             AppDestinations.EXERCISES -> ExercisesScreen(viewModel, screenModifier)
+            AppDestinations.WALKS -> WalksScreen(viewModel, screenModifier)
             AppDestinations.HEATMAP -> HeatmapScreen(viewModel, screenModifier)
             AppDestinations.SETTINGS -> SettingsScreen(viewModel, screenModifier)
         }
@@ -128,6 +131,7 @@ enum class AppDestinations(
 ) {
     MEASUREMENTS("Pomiary", Icons.Default.Favorite),
     EXERCISES("Treningi", Icons.Default.FitnessCenter),
+    WALKS("Spacery", Icons.AutoMirrored.Filled.DirectionsWalk),
     HEATMAP("Heatmapa", Icons.Default.CalendarMonth),
     SETTINGS("Ustawienia", Icons.Default.Settings)
 }

@@ -86,7 +86,23 @@ class HealthTrackerViewModel(context: Context) : ViewModel() {
 
     fun addExerciseLog(exerciseId: Long, reps: Int, sets: Int, weight: Double?, calories: Double, notes: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val log = ExerciseLog(exerciseId = exerciseId, reps = reps, sets = sets, weight = weight, calories = calories, notes = notes)
+            val log = ExerciseLog(exerciseId = exerciseId, reps = reps, sets = sets, weight = weight, calories = calories, routePath = null, notes = notes)
+            dbHelper.insertExerciseLog(log)
+            loadData()
+        }
+    }
+
+    fun addWalkLog(exerciseId: Long, durationMinutes: Int, distanceKm: Double, calories: Double, routePathJson: String?, notes: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val log = ExerciseLog(
+                exerciseId = exerciseId,
+                reps = durationMinutes,
+                sets = 1,
+                weight = distanceKm,
+                calories = calories,
+                routePath = routePathJson,
+                notes = notes
+            )
             dbHelper.insertExerciseLog(log)
             loadData()
         }

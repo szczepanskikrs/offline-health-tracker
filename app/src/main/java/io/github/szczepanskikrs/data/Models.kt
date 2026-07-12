@@ -29,6 +29,7 @@ data class ExerciseLog(
     val sets: Int,
     val weight: Double? = null, // Weight used in kg (optional), or distance in km for walks
     val calories: Double = 0.0, // Burned calories (estimated or manual)
+    val routePath: String? = null, // JSON string of coordinates for walks
     val timestamp: Long = System.currentTimeMillis(),
     val notes: String = ""
 )

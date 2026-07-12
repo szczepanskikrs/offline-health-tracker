@@ -9,7 +9,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "health_tracker.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         // Table Names
         private const val TABLE_MEASUREMENTS = "measurements"
@@ -36,6 +36,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_SETS = "sets"
         private const val KEY_WEIGHT = "weight"
         private const val KEY_CALORIES = "calories"
+        private const val KEY_ROUTE_PATH = "route_path"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -66,6 +67,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "$KEY_SETS INTEGER,"
                 + "$KEY_WEIGHT REAL,"
                 + "$KEY_CALORIES REAL,"
+                + "$KEY_ROUTE_PATH TEXT,"
                 + "$KEY_TIMESTAMP INTEGER,"
                 + "$KEY_NOTES TEXT,"
                 + "FOREIGN KEY($KEY_EXERCISE_ID) REFERENCES $TABLE_EXERCISE_TYPES($KEY_ID) ON DELETE CASCADE"
@@ -80,6 +82,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE $TABLE_EXERCISE_LOGS ADD COLUMN $KEY_CALORIES REAL DEFAULT 0.0")
             db.execSQL("INSERT OR IGNORE INTO $TABLE_EXERCISE_TYPES (name, is_custom) VALUES ('Spacer', 0)")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE $TABLE_EXERCISE_LOGS ADD COLUMN $KEY_ROUTE_PATH TEXT")
         }
     }
 
@@ -206,6 +211,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_SETS, log.sets)
             put(KEY_WEIGHT, log.weight)
             put(KEY_CALORIES, log.calories)
+            put(KEY_ROUTE_PATH, log.routePath)
             put(KEY_TIMESTAMP, log.timestamp)
             put(KEY_NOTES, log.notes)
         }
@@ -232,12 +238,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             val setsIndex = cursor.getColumnIndex(KEY_SETS)
             val weightIndex = cursor.getColumnIndex(KEY_WEIGHT)
             val caloriesIndex = cursor.getColumnIndex(KEY_CALORIES)
+            val routePathIndex = cursor.getColumnIndex(KEY_ROUTE_PATH)
             val tsIndex = cursor.getColumnIndex(KEY_TIMESTAMP)
             val notesIndex = cursor.getColumnIndex(KEY_NOTES)
 
             do {
                 val weightVal = if (cursor.isNull(weightIndex)) null else cursor.getDouble(weightIndex)
                 val caloriesVal = if (caloriesIndex != -1 && !cursor.isNull(caloriesIndex)) cursor.getDouble(caloriesIndex) else 0.0
+                val routePathVal = if (routePathIndex != -1 && !cursor.isNull(routePathIndex)) cursor.getString(routePathIndex) else null
                 list.add(
                     ExerciseLog(
                         id = cursor.getLong(idIndex),
@@ -247,6 +255,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         sets = cursor.getInt(setsIndex),
                         weight = weightVal,
                         calories = caloriesVal,
+                        routePath = routePathVal,
                         timestamp = cursor.getLong(tsIndex),
                         notes = cursor.getString(notesIndex) ?: ""
                     )
