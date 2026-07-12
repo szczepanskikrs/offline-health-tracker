@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,16 +46,57 @@ fun ExercisesScreen(
     var repsStr by remember { mutableStateOf("") }
     var setsStr by remember { mutableStateOf("1") }
     var weightStr by remember { mutableStateOf("") }
+    var caloriesStr by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var formError by remember { mutableStateOf("") }
 
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+    
+    val isWalk = selectedExercise?.name?.lowercase() == "spacer"
+
+    fun recalculateCalories(reps: String, sets: String, weight: String) {
+        if (isWalk) {
+            val distance = weight.replace(",", ".").toDoubleOrNull()
+            val minutes = reps.toIntOrNull()
+            if (distance != null && distance > 0.0) {
+                caloriesStr = (distance * 60.0).toInt().toString()
+            } else if (minutes != null && minutes > 0) {
+                caloriesStr = (minutes * 5.0).toInt().toString()
+            } else {
+                caloriesStr = ""
+            }
+        } else {
+            val repsVal = reps.toIntOrNull()
+            val setsVal = sets.toIntOrNull()
+            if (repsVal != null && setsVal != null && repsVal > 0 && setsVal > 0) {
+                val baseKcal = when (selectedExercise?.name?.lowercase()) {
+                    "pompki" -> 0.4
+                    "przysiady" -> 0.5
+                    "mostki" -> 0.3
+                    else -> 0.4
+                }
+                val w = weight.replace(",", ".").toDoubleOrNull() ?: 0.0
+                val mult = 1.0 + w / 70.0
+                caloriesStr = String.format(Locale.US, "%.0f", repsVal * setsVal * baseKcal * mult)
+            } else {
+                caloriesStr = ""
+            }
+        }
+    }
 
     // Auto-select first exercise when list loads
     LaunchedEffect(exerciseTypes) {
         if (selectedExercise == null && exerciseTypes.isNotEmpty()) {
             selectedExercise = exerciseTypes.first()
         }
+    }
+
+    // Recalculate when selected exercise changes
+    LaunchedEffect(selectedExercise) {
+        if (isWalk) {
+            setsStr = "1"
+        }
+        recalculateCalories(repsStr, setsStr, weightStr)
     }
 
     Scaffold(
@@ -154,7 +196,7 @@ fun ExercisesScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Zapisz serię dla: ${selectedExercise?.name ?: "..."}",
+                            text = if (isWalk) "Zapisz spacer" else "Zapisz serię dla: ${selectedExercise?.name ?: "..."}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -164,25 +206,29 @@ fun ExercisesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            OutlinedTextField(
-                                value = setsStr,
-                                onValueChange = {
-                                    setsStr = it
-                                    formError = ""
-                                },
-                                label = { Text("Serie") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
+                            if (!isWalk) {
+                                OutlinedTextField(
+                                    value = setsStr,
+                                    onValueChange = {
+                                        setsStr = it
+                                        formError = ""
+                                        recalculateCalories(repsStr, it, weightStr)
+                                    },
+                                    label = { Text("Serie") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true
+                                )
+                            }
 
                             OutlinedTextField(
                                 value = repsStr,
                                 onValueChange = {
                                     repsStr = it
                                     formError = ""
+                                    recalculateCalories(it, setsStr, weightStr)
                                 },
-                                label = { Text("Powtórzenia") },
+                                label = { Text(if (isWalk) "Czas spaceru (min.)" else "Powtórzenia") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
@@ -198,21 +244,34 @@ fun ExercisesScreen(
                                 onValueChange = {
                                     weightStr = it
                                     formError = ""
+                                    recalculateCalories(repsStr, setsStr, it)
                                 },
-                                label = { Text("Ciężar (kg) - opcjonalnie") },
+                                label = { Text(if (isWalk) "Dystans spaceru (km)" else "Ciężar (kg) - opcjonalnie") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
                             )
 
                             OutlinedTextField(
-                                value = notes,
-                                onValueChange = { notes = it },
-                                label = { Text("Notatki") },
+                                value = caloriesStr,
+                                onValueChange = {
+                                    caloriesStr = it
+                                    formError = ""
+                                },
+                                label = { Text("Spalone kalorie (kcal)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true
                             )
                         }
+
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text(if (isWalk) "Notatki / Trasa" else "Notatki") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
 
                         if (formError.isNotEmpty()) {
                             Text(
@@ -230,24 +289,30 @@ fun ExercisesScreen(
                                     return@Button
                                 }
                                 val reps = repsStr.toIntOrNull()
-                                val sets = setsStr.toIntOrNull()
+                                val sets = if (isWalk) 1 else setsStr.toIntOrNull()
                                 if (reps == null || reps <= 0 || sets == null || sets <= 0) {
-                                    formError = "Liczba serii i powtórzeń musi być dodatnią liczbą całkowitą."
+                                    formError = if (isWalk) "Czas spaceru musi być dodatnią liczbą całkowitą." else "Liczba serii i powtórzeń musi być dodatnią liczbą całkowitą."
                                     return@Button
                                 }
-                                val weight = weightStr.toDoubleOrNull()
+                                val weight = weightStr.replace(",", ".").toDoubleOrNull()
+                                val calories = caloriesStr.replace(",", ".").toDoubleOrNull() ?: 0.0
 
                                 viewModel.addExerciseLog(
                                     exerciseId = currentEx.id,
                                     reps = reps,
                                     sets = sets,
                                     weight = weight,
+                                    calories = calories,
                                     notes = notes
                                 )
 
                                 // Reset form values (except sets which defaults to 1)
                                 repsStr = ""
+                                if (!isWalk) {
+                                    setsStr = "1"
+                                }
                                 weightStr = ""
+                                caloriesStr = ""
                                 notes = ""
                                 formError = ""
                             },
@@ -256,9 +321,11 @@ fun ExercisesScreen(
                                 .padding(top = 4.dp),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Icon(Icons.Default.FitnessCenter, contentDescription = null)
+                            val buttonIcon = if (isWalk) Icons.AutoMirrored.Filled.DirectionsWalk else Icons.Default.FitnessCenter
+                            val buttonText = if (isWalk) "Zapisz spacer" else "Zapisz trening"
+                            Icon(buttonIcon, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Zapisz trening")
+                            Text(buttonText)
                         }
                     }
                 }
@@ -369,6 +436,10 @@ fun ExerciseLogCard(
     dateFormat: SimpleDateFormat,
     onDelete: () -> Unit
 ) {
+    val isWalk = log.exerciseName.lowercase() == "spacer"
+    val cardIcon = if (isWalk) Icons.AutoMirrored.Filled.DirectionsWalk else Icons.Default.SportsGymnastics
+    val cardColor = if (isWalk) Color(0xFF10B981) else MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
@@ -384,13 +455,13 @@ fun ExerciseLogCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    .background(cardColor.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.SportsGymnastics,
+                    imageVector = cardIcon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = cardColor
                 )
             }
 
@@ -403,13 +474,30 @@ fun ExerciseLogCard(
                     fontWeight = FontWeight.Bold
                 )
                 
-                val repsLabel = if (log.exerciseName.lowercase().contains("pompki") || log.exerciseName.lowercase().contains("przysiady") || log.exerciseName.lowercase().contains("mostki")) "powtórzeń" else "powt./sek."
-                val weightText = if (log.weight != null) " + ${log.weight} kg" else ""
+                val detailsText = if (isWalk) {
+                    val distText = if (log.weight != null && log.weight > 0.0) "${log.weight} km" else ""
+                    val timeText = if (log.reps > 0) "${log.reps} min" else ""
+                    if (distText.isNotEmpty() && timeText.isNotEmpty()) {
+                        "$distText • $timeText"
+                    } else {
+                        distText + timeText
+                    }
+                } else {
+                    val repsLabel = if (log.exerciseName.lowercase().contains("pompki") || log.exerciseName.lowercase().contains("przysiady") || log.exerciseName.lowercase().contains("mostki")) "powtórzeń" else "powt./sek."
+                    val weightText = if (log.weight != null && log.weight > 0.0) " + ${log.weight} kg" else ""
+                    "${log.sets} serii x ${log.reps} $repsLabel$weightText"
+                }
+
+                val caloriesSuffix = if (log.calories > 0.0) {
+                    val spacer = if (detailsText.isNotEmpty()) " • " else ""
+                    "$spacer${log.calories.toInt()} kcal"
+                } else ""
+
                 Text(
-                    text = "${log.sets} serii x ${log.reps} $repsLabel$weightText",
+                    text = detailsText + caloriesSuffix,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = cardColor
                 )
 
                 Text(
@@ -420,7 +508,7 @@ fun ExerciseLogCard(
 
                 if (log.notes.isNotEmpty()) {
                     Text(
-                        text = "Komentarz: ${log.notes}",
+                        text = if (isWalk) "Trasa: ${log.notes}" else "Komentarz: ${log.notes}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         modifier = Modifier.padding(top = 4.dp)

@@ -246,17 +246,28 @@ fun HeatmapGrid(
 
                         if (dayExercises.isNotEmpty()) {
                             Text(
-                                text = "Wykonane ćwiczenia:",
+                                text = "Wykonane ćwiczenia / aktywności:",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
                             )
                             dayExercises.forEach { ex ->
-                                val unitText = if (ex.exerciseName.lowercase().contains("pompki") || ex.exerciseName.lowercase().contains("przysiady") || ex.exerciseName.lowercase().contains("mostki")) "powt." else "powt./sek."
-                                val weightText = if (ex.weight != null) " + ${ex.weight} kg" else ""
+                                val isWalk = ex.exerciseName.lowercase() == "spacer"
+                                val detailText = if (isWalk) {
+                                    val distText = if (ex.weight != null && ex.weight > 0.0) "${ex.weight} km" else ""
+                                    val timeText = if (ex.reps > 0) "${ex.reps} min" else ""
+                                    val stats = if (distText.isNotEmpty() && timeText.isNotEmpty()) "$distText • $timeText" else distText + timeText
+                                    val cals = if (ex.calories > 0) " • ${ex.calories.toInt()} kcal" else ""
+                                    "${ex.exerciseName}: $stats$cals"
+                                } else {
+                                    val unitText = if (ex.exerciseName.lowercase().contains("pompki") || ex.exerciseName.lowercase().contains("przysiady") || ex.exerciseName.lowercase().contains("mostki")) "powt." else "powt./sek."
+                                    val weightText = if (ex.weight != null && ex.weight > 0.0) " + ${ex.weight} kg" else ""
+                                    val cals = if (ex.calories > 0) " • ${ex.calories.toInt()} kcal" else ""
+                                    "${ex.exerciseName}: ${ex.sets} serii x ${ex.reps} $unitText$weightText$cals"
+                                }
                                 val notesSuffix = if (ex.notes.isNotEmpty()) " (${ex.notes})" else ""
                                 Text(
-                                    text = "• ${ex.exerciseName}: ${ex.sets} serii x ${ex.reps} $unitText$weightText$notesSuffix",
+                                    text = "• $detailText$notesSuffix",
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
                                 )

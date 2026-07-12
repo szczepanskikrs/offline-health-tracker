@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.HeartBroken
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,6 +41,9 @@ fun HeatmapScreen(
     // Calculate simple stats
     val totalWorkouts = exerciseLogs.size
     val totalMeasurements = measurements.size
+    val totalCalories = remember(exerciseLogs) {
+        exerciseLogs.sumOf { it.calories }.toInt()
+    }
     
     val sdf = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val uniqueActiveDays = remember(measurements, exerciseLogs) {
@@ -114,34 +118,49 @@ fun HeatmapScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            // Stats grid layout
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard(
-                    title = "Treningi",
-                    value = "$totalWorkouts",
-                    color = Color(0xFF6366F1),
-                    icon = Icons.Default.FitnessCenter,
-                    modifier = Modifier.weight(1f)
-                )
+            // Stats grid layout (2x2)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Treningi",
+                        value = "$totalWorkouts",
+                        color = Color(0xFF6366F1),
+                        icon = Icons.Default.FitnessCenter,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                StatCard(
-                    title = "Pomiary",
-                    value = "$totalMeasurements",
-                    color = Color(0xFFEF4444),
-                    icon = Icons.Default.MonitorHeart,
-                    modifier = Modifier.weight(1f)
-                )
+                    StatCard(
+                        title = "Pomiary",
+                        value = "$totalMeasurements",
+                        color = Color(0xFFEF4444),
+                        icon = Icons.Default.MonitorHeart,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
-                StatCard(
-                    title = "Aktywne dni",
-                    value = "$uniqueActiveDays",
-                    color = Color(0xFF4CAF50),
-                    icon = Icons.Default.CalendarToday,
-                    modifier = Modifier.weight(1f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        title = "Aktywne dni",
+                        value = "$uniqueActiveDays",
+                        color = Color(0xFF4CAF50),
+                        icon = Icons.Default.CalendarToday,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    StatCard(
+                        title = "Spalone kalorie",
+                        value = "$totalCalories kcal",
+                        color = Color(0xFFE57373),
+                        icon = Icons.Default.Whatshot,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

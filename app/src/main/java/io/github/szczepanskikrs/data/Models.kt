@@ -25,9 +25,10 @@ data class ExerciseLog(
     val id: Long = 0L,
     val exerciseId: Long,
     val exerciseName: String = "", // Enriched from join
-    val reps: Int, // Count (reps) or duration (seconds)
+    val reps: Int, // Count (reps) or duration (seconds/minutes)
     val sets: Int,
-    val weight: Double? = null, // Weight used in kg (optional)
+    val weight: Double? = null, // Weight used in kg (optional), or distance in km for walks
+    val calories: Double = 0.0, // Burned calories (estimated or manual)
     val timestamp: Long = System.currentTimeMillis(),
     val notes: String = ""
 )
