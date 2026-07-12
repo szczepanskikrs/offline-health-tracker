@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HealthTrackerApp(viewModel: HealthTrackerViewModel) {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.MEASUREMENTS) }
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HEATMAP) }
 
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -140,9 +140,9 @@ enum class AppDestinations(
     val label: String,
     val icon: ImageVector,
 ) {
+    HEATMAP("Aktywność", Icons.Default.CalendarMonth),
     MEASUREMENTS("Pomiary", Icons.Default.Favorite),
     EXERCISES("Treningi", Icons.Default.FitnessCenter),
     WALKS("Spacery", Icons.AutoMirrored.Filled.DirectionsWalk),
-    HEATMAP("Heatmapa", Icons.Default.CalendarMonth),
     SETTINGS("Ustawienia", Icons.Default.Settings)
 }
