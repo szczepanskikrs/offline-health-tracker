@@ -302,64 +302,20 @@ fun SettingsScreen(
         }
     }
 
-    // Time Selection Picker Dialog
+    // Time Selection Picker Dialog (Standard Material 3 TimePicker)
     if (showTimeDialog) {
-        var tempHour by remember { mutableStateOf(reminderTime.first) }
-        var tempMinute by remember { mutableStateOf(reminderTime.second) }
+        val timePickerState = rememberTimePickerState(
+            initialHour = reminderTime.first,
+            initialMinute = reminderTime.second,
+            is24Hour = true
+        )
 
         AlertDialog(
             onDismissRequest = { showTimeDialog = false },
-            title = { Text("Wybierz godzinę", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = String.format("%02d:%02d", tempHour, tempMinute),
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Godzina: $tempHour", style = MaterialTheme.typography.bodyMedium)
-                            Slider(
-                                value = tempHour.toFloat(),
-                                onValueChange = { tempHour = it.toInt() },
-                                valueRange = 0f..23f,
-                                steps = 22
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Minuta: $tempMinute", style = MaterialTheme.typography.bodyMedium)
-                            Slider(
-                                value = tempMinute.toFloat(),
-                                onValueChange = { tempMinute = it.toInt() },
-                                valueRange = 0f..59f,
-                                steps = 58
-                            )
-                        }
-                    }
-                }
-            },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.updateReminderTime(tempHour, tempMinute, context)
+                        viewModel.updateReminderTime(timePickerState.hour, timePickerState.minute, context)
                         showTimeDialog = false
                     }
                 ) {
@@ -369,6 +325,20 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showTimeDialog = false }) {
                     Text("Anuluj")
+                }
+            },
+            title = {
+                Text(
+                    text = "Wybierz godzinę",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimePicker(state = timePickerState)
                 }
             }
         )
