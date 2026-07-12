@@ -319,20 +319,31 @@ fun WalkTrackerMap(
         }
     }
 
+    // Centering map on initial location load
+    LaunchedEffect(mapViewInstance, lastLocation) {
+        val mv = mapViewInstance
+        val loc = lastLocation
+        if (mv != null && loc != null && pathPoints.isEmpty()) {
+            mv.controller.setCenter(GeoPoint(loc.latitude, loc.longitude))
+        }
+    }
+
     // GPS Location listener
     val locationListener = remember {
         object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                if (!isTracking) return
                 val newPoint = GeoPoint(location.latitude, location.longitude)
-                pathPoints.add(newPoint)
-
-                lastLocation?.let { last ->
-                    val distMeters = last.distanceTo(location)
-                    // GPS Jitter filter: ignore tiny updates or inaccurate data
-                    if (distMeters > 3.0 && location.accuracy < 25f) {
-                        distanceKm += distMeters / 1000.0
+                
+                if (isTracking) {
+                    val prevLocation = lastLocation
+                    if (prevLocation != null && prevLocation != location) {
+                        val distMeters = prevLocation.distanceTo(location)
+                        // GPS Jitter filter: ignore tiny updates or inaccurate data
+                        if (distMeters > 3.0 && location.accuracy < 25f) {
+                            distanceKm += distMeters / 1000.0
+                        }
                     }
+                    pathPoints.add(newPoint)
                 }
                 lastLocation = location
             }
@@ -342,27 +353,23 @@ fun WalkTrackerMap(
         }
     }
 
-    // Toggle location requests
-    DisposableEffect(isTracking) {
-        if (isTracking) {
-            try {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    2000L, // 2s
-                    2f, // 2m
-                    locationListener
-                )
-                // Get last known location for initial map centering
-                val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                if (lastKnown != null && pathPoints.isEmpty()) {
-                    pathPoints.add(GeoPoint(lastKnown.latitude, lastKnown.longitude))
-                }
-            } catch (e: SecurityException) {
-                e.printStackTrace()
+    // Always listen to location updates while Walks tab is active
+    DisposableEffect(Unit) {
+        try {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                2000L, // 2s
+                2f, // 2m
+                locationListener
+            )
+            // Get last known location for initial map centering
+            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            if (lastKnown != null) {
+                lastLocation = lastKnown
             }
-        } else {
-            locationManager.removeUpdates(locationListener)
+        } catch (e: SecurityException) {
+            e.printStackTrace()
         }
 
         onDispose {
@@ -394,6 +401,7 @@ fun WalkTrackerMap(
             update = { mapView ->
                 mapView.overlays.clear()
                 
+                // Draw route path
                 if (pathPoints.isNotEmpty()) {
                     val polyline = Polyline(mapView).apply {
                         outlinePaint.color = android.graphics.Color.rgb(16, 185, 129) // Emerald
@@ -403,25 +411,29 @@ fun WalkTrackerMap(
                     mapView.overlays.add(polyline)
 
                     // Start marker
-                    if (pathPoints.size > 0) {
-                        val startMarker = Marker(mapView).apply {
-                            position = pathPoints.first()
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            title = "Początek"
-                        }
-                        mapView.overlays.add(startMarker)
+                    val startMarker = Marker(mapView).apply {
+                        position = pathPoints.first()
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        title = "Początek"
                     }
+                    mapView.overlays.add(startMarker)
+                }
 
-                    // Current location marker
+                // Current location marker (always draw if we have lastLocation)
+                val lastLoc = lastLocation
+                if (lastLoc != null) {
+                    val currentPt = GeoPoint(lastLoc.latitude, lastLoc.longitude)
                     val currentMarker = Marker(mapView).apply {
-                        position = pathPoints.last()
+                        position = currentPt
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         title = "Twoja lokalizacja"
                     }
                     mapView.overlays.add(currentMarker)
                     
                     // Keep centering map on user location while tracking
-                    mapView.controller.animateTo(pathPoints.last())
+                    if (isTracking && pathPoints.isNotEmpty()) {
+                        mapView.controller.animateTo(pathPoints.last())
+                    }
                 }
             },
             modifier = Modifier.fillMaxSize().clipToBounds()
