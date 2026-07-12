@@ -9,7 +9,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "health_tracker.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
 
         // Table Names
         private const val TABLE_MEASUREMENTS = "measurements"
@@ -29,6 +29,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         // Exercise Types Table Columns
         private const val KEY_EXERCISE_NAME = "name"
         private const val KEY_IS_CUSTOM = "is_custom"
+        private const val KEY_CALORIES_PER_REP = "calories_per_rep"
 
         // Exercise Logs Table Columns
         private const val KEY_EXERCISE_ID = "exercise_id"
@@ -55,7 +56,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val createExerciseTypesTable = ("CREATE TABLE $TABLE_EXERCISE_TYPES ("
                 + "$KEY_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "$KEY_EXERCISE_NAME TEXT UNIQUE,"
-                + "$KEY_IS_CUSTOM INTEGER"
+                + "$KEY_IS_CUSTOM INTEGER,"
+                + "$KEY_CALORIES_PER_REP REAL DEFAULT 0.0"
                 + ")")
         db.execSQL(createExerciseTypesTable)
 
@@ -86,14 +88,32 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE $TABLE_EXERCISE_LOGS ADD COLUMN $KEY_ROUTE_PATH TEXT")
         }
+        if (oldVersion < 4) {
+            // Check if column exists first or alter table directly
+            try {
+                db.execSQL("ALTER TABLE $TABLE_EXERCISE_TYPES ADD COLUMN $KEY_CALORIES_PER_REP REAL DEFAULT 0.0")
+            } catch (e: Exception) {
+                // Column might already exist in some edge test cases
+            }
+            db.execSQL("UPDATE $TABLE_EXERCISE_TYPES SET $KEY_CALORIES_PER_REP = 0.35 WHERE $KEY_EXERCISE_NAME = 'Pompki'")
+            db.execSQL("UPDATE $TABLE_EXERCISE_TYPES SET $KEY_CALORIES_PER_REP = 0.45 WHERE $KEY_EXERCISE_NAME = 'Przysiady'")
+            db.execSQL("UPDATE $TABLE_EXERCISE_TYPES SET $KEY_CALORIES_PER_REP = 0.25 WHERE $KEY_EXERCISE_NAME = 'Mostki'")
+            db.execSQL("UPDATE $TABLE_EXERCISE_TYPES SET $KEY_CALORIES_PER_REP = 0.0 WHERE $KEY_EXERCISE_NAME = 'Spacer'")
+        }
     }
 
     private fun insertDefaultExerciseTypes(db: SQLiteDatabase) {
-        val defaults = listOf("Pompki", "Przysiady", "Mostki", "Spacer")
-        for (name in defaults) {
+        val defaults = listOf(
+            Triple("Pompki", 0, 0.35),
+            Triple("Przysiady", 0, 0.45),
+            Triple("Mostki", 0, 0.25),
+            Triple("Spacer", 0, 0.0)
+        )
+        for (item in defaults) {
             val values = ContentValues().apply {
-                put(KEY_EXERCISE_NAME, name)
-                put(KEY_IS_CUSTOM, 0) // Built-in
+                put(KEY_EXERCISE_NAME, item.first)
+                put(KEY_IS_CUSTOM, item.second)
+                put(KEY_CALORIES_PER_REP, item.third)
             }
             db.insert(TABLE_EXERCISE_TYPES, null, values)
         }
@@ -160,11 +180,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     // --- EXERCISE TYPE OPERATIONS ---
 
-    fun insertExerciseType(name: String, isCustom: Boolean = true): Long {
+    fun insertExerciseType(name: String, isCustom: Boolean = true, caloriesPerRep: Double = 0.0): Long {
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(KEY_EXERCISE_NAME, name)
             put(KEY_IS_CUSTOM, if (isCustom) 1 else 0)
+            put(KEY_CALORIES_PER_REP, caloriesPerRep)
         }
         return db.insertWithOnConflict(TABLE_EXERCISE_TYPES, null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
@@ -179,13 +200,20 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             val idIndex = cursor.getColumnIndex(KEY_ID)
             val nameIndex = cursor.getColumnIndex(KEY_EXERCISE_NAME)
             val isCustomIndex = cursor.getColumnIndex(KEY_IS_CUSTOM)
+            val caloriesPerRepIndex = cursor.getColumnIndex(KEY_CALORIES_PER_REP)
 
             do {
+                val caloriesPerRep = if (caloriesPerRepIndex != -1 && !cursor.isNull(caloriesPerRepIndex)) {
+                    cursor.getDouble(caloriesPerRepIndex)
+                } else {
+                    0.0
+                }
                 list.add(
                     ExerciseType(
                         id = cursor.getLong(idIndex),
                         name = cursor.getString(nameIndex) ?: "",
-                        isCustom = cursor.getInt(isCustomIndex) == 1
+                        isCustom = cursor.getInt(isCustomIndex) == 1,
+                        caloriesPerRep = caloriesPerRep
                     )
                 )
             } while (cursor.moveToNext())

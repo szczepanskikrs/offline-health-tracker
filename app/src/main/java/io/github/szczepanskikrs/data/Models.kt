@@ -18,7 +18,8 @@ data class MeasurementEntry(
 data class ExerciseType(
     val id: Long = 0L,
     val name: String,
-    val isCustom: Boolean = false
+    val isCustom: Boolean = false,
+    val caloriesPerRep: Double = 0.0
 )
 
 data class ExerciseLog(

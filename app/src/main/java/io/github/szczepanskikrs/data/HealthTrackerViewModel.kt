@@ -70,9 +70,9 @@ class HealthTrackerViewModel(context: Context) : ViewModel() {
         }
     }
 
-    fun addExerciseType(name: String) {
+    fun addExerciseType(name: String, caloriesPerRep: Double) {
         viewModelScope.launch(Dispatchers.IO) {
-            dbHelper.insertExerciseType(name)
+            dbHelper.insertExerciseType(name, true, caloriesPerRep)
             loadData()
         }
     }

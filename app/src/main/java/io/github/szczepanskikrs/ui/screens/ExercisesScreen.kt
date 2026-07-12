@@ -59,9 +59,9 @@ fun ExercisesScreen(
             val distance = weight.replace(",", ".").toDoubleOrNull()
             val minutes = reps.toIntOrNull()
             if (distance != null && distance > 0.0) {
-                caloriesStr = (distance * 60.0).toInt().toString()
+                caloriesStr = String.format(Locale.US, "%.1f", distance * 60.0)
             } else if (minutes != null && minutes > 0) {
-                caloriesStr = (minutes * 5.0).toInt().toString()
+                caloriesStr = String.format(Locale.US, "%.1f", minutes * 5.0)
             } else {
                 caloriesStr = ""
             }
@@ -69,15 +69,10 @@ fun ExercisesScreen(
             val repsVal = reps.toIntOrNull()
             val setsVal = sets.toIntOrNull()
             if (repsVal != null && setsVal != null && repsVal > 0 && setsVal > 0) {
-                val baseKcal = when (selectedExercise?.name?.lowercase()) {
-                    "pompki" -> 0.4
-                    "przysiady" -> 0.5
-                    "mostki" -> 0.3
-                    else -> 0.4
-                }
+                val baseKcal = selectedExercise?.caloriesPerRep ?: 0.4
                 val w = weight.replace(",", ".").toDoubleOrNull() ?: 0.0
                 val mult = 1.0 + w / 70.0
-                caloriesStr = String.format(Locale.US, "%.0f", repsVal * setsVal * baseKcal * mult)
+                caloriesStr = String.format(Locale.US, "%.1f", repsVal * setsVal * baseKcal * mult)
             } else {
                 caloriesStr = ""
             }
@@ -254,14 +249,15 @@ fun ExercisesScreen(
 
                             OutlinedTextField(
                                 value = caloriesStr,
-                                onValueChange = {
-                                    caloriesStr = it
-                                    formError = ""
-                                },
+                                onValueChange = {},
                                 label = { Text("Spalone kalorie (kcal)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                readOnly = true,
                                 modifier = Modifier.weight(1f),
-                                singleLine = true
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                )
                             )
                         }
 
@@ -372,6 +368,7 @@ fun ExercisesScreen(
     // Add Custom Exercise Type Dialog
     if (showAddTypeDialog) {
         var newTypeName by remember { mutableStateOf("") }
+        var newTypeCalories by remember { mutableStateOf("0.5") }
         var typeErrorMsg by remember { mutableStateOf("") }
 
         AlertDialog(
@@ -383,7 +380,7 @@ fun ExercisesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Wpisz nazwę ćwiczenia, które chcesz dodać (np. Podciąganie, Przysiad z wyskokiem).",
+                        text = "Wpisz nazwę ćwiczenia oraz szacowaną liczbę spalanych kalorii za 1 powtórzenie.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -395,6 +392,17 @@ fun ExercisesScreen(
                         },
                         label = { Text("Nazwa ćwiczenia") },
                         singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = newTypeCalories,
+                        onValueChange = {
+                            newTypeCalories = it
+                            typeErrorMsg = ""
+                        },
+                        label = { Text("Kalorie za 1 powtórzenie (kcal)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (typeErrorMsg.isNotEmpty()) {
@@ -414,7 +422,12 @@ fun ExercisesScreen(
                             typeErrorMsg = "Ćwiczenie o tej nazwie już istnieje."
                             return@Button
                         }
-                        viewModel.addExerciseType(nameClean)
+                        val caloriesVal = newTypeCalories.replace(",", ".").toDoubleOrNull()
+                        if (caloriesVal == null || caloriesVal < 0.0) {
+                            typeErrorMsg = "Wpisz poprawną wartość kalorii (np. 0.5)."
+                            return@Button
+                        }
+                        viewModel.addExerciseType(nameClean, caloriesVal)
                         showAddTypeDialog = false
                     }
                 ) {
