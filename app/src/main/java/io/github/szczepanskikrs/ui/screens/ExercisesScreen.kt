@@ -34,7 +34,8 @@ import java.util.Locale
 @Composable
 fun ExercisesScreen(
     viewModel: HealthTrackerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showTopAppBar: Boolean = true
 ) {
     val exerciseTypes by viewModel.exerciseTypes.collectAsState()
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
@@ -96,13 +97,15 @@ fun ExercisesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Śledzenie Ćwiczeń", fontWeight = FontWeight.Black) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
+            if (showTopAppBar) {
+                TopAppBar(
+                    title = { Text("Śledzenie Ćwiczeń", fontWeight = FontWeight.Black) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
+            }
         },
         modifier = modifier
     ) { innerPadding ->

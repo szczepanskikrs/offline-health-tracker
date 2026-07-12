@@ -29,13 +29,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.lifecycle.ViewModelProvider
+import androidx.compose.material.icons.filled.RestaurantMenu
 import io.github.szczepanskikrs.data.HealthTrackerViewModel
 import io.github.szczepanskikrs.data.HealthTrackerViewModelFactory
-import io.github.szczepanskikrs.ui.screens.ExercisesScreen
+import io.github.szczepanskikrs.ui.screens.ActivityScreen
 import io.github.szczepanskikrs.ui.screens.HeatmapScreen
 import io.github.szczepanskikrs.ui.screens.MeasurementsScreen
 import io.github.szczepanskikrs.ui.screens.SettingsScreen
-import io.github.szczepanskikrs.ui.screens.WalksScreen
+import io.github.szczepanskikrs.ui.screens.MealPlanScreen
 import io.github.szczepanskikrs.ui.theme.HealthTrackerTheme
 import io.github.szczepanskikrs.utils.NotificationHelper
 
@@ -128,8 +129,8 @@ fun HealthTrackerApp(viewModel: HealthTrackerViewModel) {
         val screenModifier = Modifier.fillMaxSize()
         when (currentDestination) {
             AppDestinations.MEASUREMENTS -> MeasurementsScreen(viewModel, screenModifier)
-            AppDestinations.EXERCISES -> ExercisesScreen(viewModel, screenModifier)
-            AppDestinations.WALKS -> WalksScreen(viewModel, screenModifier)
+            AppDestinations.MEAL_PLAN -> MealPlanScreen(viewModel, screenModifier)
+            AppDestinations.EXERCISES -> ActivityScreen(viewModel, screenModifier)
             AppDestinations.HEATMAP -> HeatmapScreen(viewModel, screenModifier)
             AppDestinations.SETTINGS -> SettingsScreen(viewModel, screenModifier)
         }
@@ -137,12 +138,12 @@ fun HealthTrackerApp(viewModel: HealthTrackerViewModel) {
 }
 
 enum class AppDestinations(
-    val label: String,
     val icon: ImageVector,
+    val label: String,
 ) {
-    HEATMAP("Aktywność", Icons.Default.CalendarMonth),
-    MEASUREMENTS("Pomiary", Icons.Default.Favorite),
-    EXERCISES("Treningi", Icons.Default.FitnessCenter),
-    WALKS("Spacery", Icons.AutoMirrored.Filled.DirectionsWalk),
-    SETTINGS("Ustawienia", Icons.Default.Settings)
+    HEATMAP(Icons.Default.CalendarMonth, "Aktywność"),
+    MEASUREMENTS(Icons.Default.Favorite, "Pomiary"),
+    MEAL_PLAN(Icons.Default.RestaurantMenu, "Jadłospis"),
+    EXERCISES(Icons.Default.FitnessCenter, "Treningi"),
+    SETTINGS(Icons.Default.Settings, "Ustawienia")
 }

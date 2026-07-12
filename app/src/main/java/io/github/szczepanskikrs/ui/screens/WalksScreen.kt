@@ -49,7 +49,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun WalksScreen(
     viewModel: HealthTrackerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showTopAppBar: Boolean = true
 ) {
     val context = LocalContext.current
     val exerciseTypes by viewModel.exerciseTypes.collectAsState()
@@ -81,13 +82,15 @@ fun WalksScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Śledzenie Spacerów", fontWeight = FontWeight.Black) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
+            if (showTopAppBar) {
+                TopAppBar(
+                    title = { Text("Śledzenie Spacerów", fontWeight = FontWeight.Black) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
+            }
         },
         modifier = modifier
     ) { innerPadding ->
