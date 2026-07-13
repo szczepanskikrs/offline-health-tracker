@@ -292,13 +292,13 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
                             random = random
                         )
 
-                        // Save to database
-                        for ((index, recipe) in dayRecipes.withIndex()) {
-                            dbHelper.insertMealPlanEntry(currentDayString, index, recipe.id)
+                        // Save to database with scale factors
+                        for ((index, scaledRecipe) in dayRecipes.withIndex()) {
+                            dbHelper.insertMealPlanEntry(currentDayString, index, scaledRecipe.recipe.id, scaledRecipe.scale)
                         }
 
                         // Update history for variety: only avoid recipes used in the last 2 days
-                        val dayRecipeIds = dayRecipes.map { it.id }.toSet()
+                        val dayRecipeIds = dayRecipes.map { it.recipe.id }.toSet()
                         recentHistory.add(dayRecipeIds)
                         recentRecipeIds.addAll(dayRecipeIds)
                         if (recentHistory.size > 2) {
@@ -347,15 +347,32 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    /**
+     * Returns per-slot calorie ratio weights. Heavier breakfast & lunch, lighter supper.
+     * Ratios are normalized to sum to 1.0.
+     */
+    private fun getSlotKcalRatios(numMeals: Int): List<Double> {
+        val raw = when (numMeals) {
+            3 -> listOf(0.30, 0.45, 0.25)                      // Śniadanie 30%, Obiad 45%, Kolacja 25%
+            4 -> listOf(0.25, 0.10, 0.40, 0.25)                // Śniadanie 25%, Snack 10%, Obiad 40%, Kolacja 25%
+            5 -> listOf(0.25, 0.10, 0.35, 0.10, 0.20)          // Śniadanie 25%, Snack 10%, Obiad 35%, Snack 10%, Kolacja 20%
+            else -> List(numMeals) { 1.0 / numMeals }
+        }
+        val sum = raw.sum()
+        return raw.map { it / sum }
+    }
+
+    data class ScaledRecipe(val recipe: Recipe, val scale: Double)
+
     private fun generateDailyRecipesForSlots(
         recipes: List<Recipe>,
         targetKcal: Double,
         slotCategories: List<List<MealType>>,
         avoidIds: Set<Long>,
         random: Random
-    ): List<Recipe> {
-        var bestCombo = emptyList<Recipe>()
-        var bestScore = Double.MAX_VALUE
+    ): List<ScaledRecipe> {
+        val kcalRatios = getSlotKcalRatios(slotCategories.size)
+        val slotTargets = kcalRatios.map { it * targetKcal }
 
         // Prepare pool for each slot
         val slotPools = slotCategories.map { categories ->
@@ -364,33 +381,45 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
             if (preferredPool.isNotEmpty()) preferredPool else if (slotRecipes.isNotEmpty()) slotRecipes else recipes
         }
 
-        for (trial in 0 until 1000) {
-            val candidate = mutableListOf<Recipe>()
+        var bestCombo = emptyList<ScaledRecipe>()
+        var bestScore = Double.MAX_VALUE
+
+        for (trial in 0 until 500) {
+            val candidate = mutableListOf<ScaledRecipe>()
             val chosenIds = mutableSetOf<Long>()
-            
+            var totalScore = 0.0
+
             for (slotIndex in slotPools.indices) {
                 val pool = slotPools[slotIndex]
+                val slotTarget = slotTargets[slotIndex]
+
+                // Pick a recipe, avoiding duplicates in the same day
                 var recipe = pool[random.nextInt(pool.size)]
-                // Avoid duplicates in the same day if possible (retry up to 5 times)
-                var retries = 5
+                var retries = 8
                 while (recipe.id in chosenIds && retries > 0) {
                     recipe = pool[random.nextInt(pool.size)]
                     retries--
                 }
-                candidate.add(recipe)
+
+                // Calculate scale factor: how much to scale this recipe to hit the slot target
+                val rawScale = if (recipe.kcal > 0) slotTarget / recipe.kcal else 1.0
+                // Clamp between 0.5x and 2.0x to keep portions realistic
+                val scale = rawScale.coerceIn(0.5, 2.0)
+                val scaledKcal = recipe.kcal * scale
+                val slotDiff = Math.abs(scaledKcal - slotTarget)
+                totalScore += slotDiff
+
+                candidate.add(ScaledRecipe(recipe, scale))
                 chosenIds.add(recipe.id)
             }
 
-            val sumKcal = candidate.sumOf { it.kcal }
-            val diff = Math.abs(sumKcal - targetKcal)
-            if (diff < bestScore) {
-                bestScore = diff
+            if (totalScore < bestScore) {
+                bestScore = totalScore
                 bestCombo = candidate
-                if (diff < 15.0) {
-                    break
-                }
+                if (totalScore < 20.0) break
             }
         }
+
         return bestCombo
     }
 

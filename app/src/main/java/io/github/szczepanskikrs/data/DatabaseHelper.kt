@@ -9,7 +9,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "health_tracker.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
 
         // Table Names
         private const val TABLE_MEASUREMENTS = "measurements"
@@ -56,6 +56,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_MEAL_INDEX = "meal_index"
         private const val KEY_MEAL_RECIPE_ID = "recipe_id"
         private const val KEY_MEAL_EATEN = "is_eaten"
+        private const val KEY_MEAL_SCALE = "scale"
 
         // Recipe Ingredients Table Columns
         private const val KEY_ING_DISH_ID = "dish_id"
@@ -119,6 +120,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "$KEY_MEAL_INDEX INTEGER,"
                 + "$KEY_MEAL_RECIPE_ID INTEGER,"
                 + "$KEY_MEAL_EATEN INTEGER DEFAULT 0,"
+                + "$KEY_MEAL_SCALE REAL DEFAULT 1.0,"
                 + "FOREIGN KEY($KEY_MEAL_RECIPE_ID) REFERENCES $TABLE_RECIPES($KEY_ID) ON DELETE CASCADE"
                 + ")")
         db.execSQL(createMealPlanTable)
@@ -190,6 +192,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                     + "$KEY_ING_WEIGHT REAL"
                     + ")")
             db.execSQL(createRecipeIngredientsTable)
+        }
+        if (oldVersion < 7) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_MEAL_PLAN ADD COLUMN $KEY_MEAL_SCALE REAL DEFAULT 1.0")
+            } catch (e: Exception) {
+                // Column might already exist
+            }
         }
     }
 
@@ -515,13 +524,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return list
     }
 
-    fun insertMealPlanEntry(date: String, mealIndex: Int, recipeId: Long): Long {
+    fun insertMealPlanEntry(date: String, mealIndex: Int, recipeId: Long, scale: Double = 1.0): Long {
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(KEY_MEAL_DATE, date)
             put(KEY_MEAL_INDEX, mealIndex)
             put(KEY_MEAL_RECIPE_ID, recipeId)
             put(KEY_MEAL_EATEN, 0)
+            put(KEY_MEAL_SCALE, scale)
         }
         return db.insert(TABLE_MEAL_PLAN, null, values)
     }
@@ -545,6 +555,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             val mealIdxIdx = cursor.getColumnIndex(KEY_MEAL_INDEX)
             val recIdIdx = cursor.getColumnIndex(KEY_MEAL_RECIPE_ID)
             val eatenIdx = cursor.getColumnIndex(KEY_MEAL_EATEN)
+            val scaleIdx = cursor.getColumnIndex(KEY_MEAL_SCALE)
             val nameIdx = cursor.getColumnIndex(KEY_RECIPE_NAME)
             val kcalIdx = cursor.getColumnIndex(KEY_RECIPE_KCAL)
             val protIdx = cursor.getColumnIndex(KEY_RECIPE_PROTEIN)
@@ -554,6 +565,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             val saltIdx = cursor.getColumnIndex(KEY_RECIPE_SALT)
 
             do {
+                val scale = if (scaleIdx >= 0) cursor.getDouble(scaleIdx) else 1.0
                 list.add(
                     MealPlanEntry(
                         id = cursor.getLong(idIdx),
@@ -561,12 +573,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         mealIndex = cursor.getInt(mealIdxIdx),
                         recipeId = cursor.getLong(recIdIdx),
                         recipeName = cursor.getString(nameIdx) ?: "",
-                        kcal = cursor.getDouble(kcalIdx),
-                        protein = cursor.getDouble(protIdx),
-                        fat = cursor.getDouble(fatIdx),
-                        carbs = cursor.getDouble(carbsIdx),
-                        fiber = cursor.getDouble(fibIdx),
-                        salt = cursor.getDouble(saltIdx),
+                        kcal = cursor.getDouble(kcalIdx) * scale,
+                        protein = cursor.getDouble(protIdx) * scale,
+                        fat = cursor.getDouble(fatIdx) * scale,
+                        carbs = cursor.getDouble(carbsIdx) * scale,
+                        fiber = cursor.getDouble(fibIdx) * scale,
+                        salt = cursor.getDouble(saltIdx) * scale,
+                        scale = scale,
                         isEaten = cursor.getInt(eatenIdx) == 1
                     )
                 )
@@ -680,7 +693,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     fun getWeeklyShoppingList(startDate: String, endDate: String): List<Pair<String, Double>> {
         val list = mutableListOf<Pair<String, Double>>()
         val selectQuery = """
-            SELECT ri.$KEY_ING_NAME, SUM(ri.$KEY_ING_WEIGHT)
+            SELECT ri.$KEY_ING_NAME, SUM(ri.$KEY_ING_WEIGHT * COALESCE(mp.$KEY_MEAL_SCALE, 1.0))
             FROM $TABLE_MEAL_PLAN mp
             JOIN $TABLE_RECIPE_INGREDIENTS ri ON mp.$KEY_MEAL_RECIPE_ID = ri.$KEY_ING_DISH_ID
             WHERE mp.$KEY_MEAL_DATE BETWEEN ? AND ?

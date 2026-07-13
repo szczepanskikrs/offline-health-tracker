@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ClipEntry
 import android.content.ClipData
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -452,11 +453,24 @@ fun MealEntryRow(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text(
-                            text = "${entry.kcal.toInt()} kcal",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Black
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${entry.kcal.toInt()} kcal",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Black
+                            )
+                            if (entry.scale != 1.0) {
+                                Text(
+                                    text = "${(entry.scale * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (entry.scale > 1.0) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -471,12 +485,14 @@ fun MealEntryRow(
                 )
             }
 
-            Text(
-                text = entry.recipeName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (entry.isEaten) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurface
-            )
+            SelectionContainer {
+                Text(
+                    text = entry.recipeName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (entry.isEaten) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             // Mini row of nutrients (displayed in collapsed mode too for glanceability)
             Row(
@@ -503,11 +519,9 @@ fun MealEntryRow(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     
                     // Ingredients list
-                    var ingredients by remember { mutableStateOf<List<RecipeIngredient>?>(null) }
-                    LaunchedEffect(expanded) {
-                        if (expanded && ingredients == null) {
-                            ingredients = viewModel.getIngredientsForRecipe(entry.recipeId)
-                        }
+                    var ingredients by remember(entry.recipeId) { mutableStateOf<List<RecipeIngredient>?>(null) }
+                    LaunchedEffect(entry.recipeId) {
+                        ingredients = viewModel.getIngredientsForRecipe(entry.recipeId)
                     }
 
                     Text("Składniki:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -526,12 +540,18 @@ fun MealEntryRow(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             ingredients!!.forEach { ing ->
+                                val scaledWeight = ing.weight * entry.scale
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("• ${ing.name}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                                    Text("${ing.weight.toInt()} g", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        text = if (scaledWeight >= 1000.0) String.format(Locale.getDefault(), "%.2f kg", scaledWeight / 1000.0) else "${scaledWeight.toInt()} g",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }

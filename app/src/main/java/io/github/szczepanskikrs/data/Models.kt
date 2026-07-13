@@ -105,12 +105,13 @@ data class MealPlanEntry(
     val mealIndex: Int,       // 0 to 4 (e.g. 0=Śniadanie, 1=Drugie śniadanie, 2=Obiad, 3=Podwieczorek, 4=Kolacja)
     val recipeId: Long,
     val recipeName: String = "",   // Enriched from join
-    val kcal: Double = 0.0,         // Enriched from join
-    val protein: Double = 0.0,      // Enriched from join
-    val fat: Double = 0.0,          // Enriched from join
-    val carbs: Double = 0.0,        // Enriched from join
-    val fiber: Double = 0.0,        // Enriched from join
-    val salt: Double = 0.0,         // Enriched from join
+    val kcal: Double = 0.0,         // Enriched from join, scaled
+    val protein: Double = 0.0,      // Enriched from join, scaled
+    val fat: Double = 0.0,          // Enriched from join, scaled
+    val carbs: Double = 0.0,        // Enriched from join, scaled
+    val fiber: Double = 0.0,        // Enriched from join, scaled
+    val salt: Double = 0.0,         // Enriched from join, scaled
+    val scale: Double = 1.0,        // Portion scale factor (1.0 = 100%)
     val isEaten: Boolean = false
 )
 
