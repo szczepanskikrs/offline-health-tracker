@@ -221,21 +221,25 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
             val currentRecipe = recipes.find { it.id == currentEntry.recipeId } ?: return@launch
             val currentCategory = currentRecipe.category
 
+            // The target kcal for this slot is the currently displayed (already scaled) value
             val targetKcal = currentEntry.kcal
-            // Find alternative recipes of the SAME category within +/- 150 kcal, excluding current one
-            val alternatives = recipes.filter { 
-                it.category == currentCategory && 
-                Math.abs(it.kcal - targetKcal) <= 150.0 && 
-                it.id != currentEntry.recipeId 
-            }
-            val pool = if (alternatives.isNotEmpty()) alternatives else recipes.filter { it.category == currentCategory }
-            val finalPool = if (pool.isNotEmpty()) pool else recipes
-            val newRecipe = finalPool.random()
+
+            // Find alternative recipes of the SAME category, excluding current one
+            val categoryPool = recipes.filter { it.category == currentCategory && it.id != currentEntry.recipeId }
+            val finalPool = if (categoryPool.isNotEmpty()) categoryPool else recipes.filter { it.id != currentEntry.recipeId }
+            if (finalPool.isEmpty()) return@launch
+
+            // Pick the recipe whose base kcal is closest to target (minimizes extreme scaling)
+            val newRecipe = finalPool.sortedBy { Math.abs(it.kcal - targetKcal) }.take(10).random()
+
+            // Compute scale so the new recipe hits the same slot target kcal
+            val newScale = if (newRecipe.kcal > 0) (targetKcal / newRecipe.kcal).coerceIn(0.5, 2.0) else 1.0
 
             // Update in database
             val db = dbHelper.writableDatabase
             val values = android.content.ContentValues().apply {
                 put("recipe_id", newRecipe.id)
+                put("scale", newScale)
                 put("is_eaten", 0)
             }
             db.update("meal_plan", values, "id = ?", arrayOf(mealEntryId.toString()))
