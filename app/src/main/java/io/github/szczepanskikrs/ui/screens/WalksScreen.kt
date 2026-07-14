@@ -33,6 +33,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import io.github.szczepanskikrs.data.ExerciseLog
 import io.github.szczepanskikrs.data.HealthTrackerViewModel
+import io.github.szczepanskikrs.service.WalkTrackerState
+import io.github.szczepanskikrs.service.LocationTrackingService
 import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
@@ -118,12 +120,14 @@ fun WalksScreen(
             if (activeTab == 0) {
                 if (!hasLocationPermission) {
                     LocationPermissionRequestScreen(onGrantRequest = {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
+                        val permissionsToRequest = mutableListOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
                         )
+                        if (android.os.Build.VERSION.SDK_INT >= 33) { // Android 13 (Tiramisu)
+                            permissionsToRequest.add("android.permission.POST_NOTIFICATIONS")
+                        }
+                        permissionLauncher.launch(permissionsToRequest.toTypedArray())
                     })
                 } else {
                     WalkTrackerMap(
@@ -301,26 +305,16 @@ fun WalkTrackerMap(
     val context = LocalContext.current
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
 
-    var isTracking by remember { mutableStateOf(false) }
-    var secondsElapsed by remember { mutableStateOf(0L) }
-    var distanceKm by remember { mutableStateOf(0.0) }
-    val pathPoints = remember { mutableStateListOf<GeoPoint>() }
-    var lastLocation by remember { mutableStateOf<Location?>(null) }
+    val isTracking by WalkTrackerState.isTracking.collectAsState()
+    val secondsElapsed by WalkTrackerState.secondsElapsed.collectAsState()
+    val distanceKm by WalkTrackerState.distanceKm.collectAsState()
+    val pathPoints by WalkTrackerState.pathPoints.collectAsState()
+    val lastLocation by WalkTrackerState.lastLocation.collectAsState()
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     
     // Live save dialog state
     var showSaveDialog by remember { mutableStateOf(false) }
     var routeNotes by remember { mutableStateOf("") }
-
-    // Live timer
-    LaunchedEffect(isTracking) {
-        if (isTracking) {
-            while (true) {
-                delay(1000)
-                secondsElapsed += 1
-            }
-        }
-    }
 
     // Centering map on initial location load
     LaunchedEffect(mapViewInstance, lastLocation) {
@@ -331,24 +325,14 @@ fun WalkTrackerMap(
         }
     }
 
-    // GPS Location listener
+    // GPS Location listener for centering/updating current location marker in UI when NOT tracking.
+    // When tracking, the Service updates the WalkTrackerState.lastLocation itself.
     val locationListener = remember {
         object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                val newPoint = GeoPoint(location.latitude, location.longitude)
-                
-                if (isTracking) {
-                    val prevLocation = lastLocation
-                    if (prevLocation != null && prevLocation != location) {
-                        val distMeters = prevLocation.distanceTo(location)
-                        // GPS Jitter filter: ignore tiny updates or inaccurate data
-                        if (distMeters > 3.0 && location.accuracy < 25f) {
-                            distanceKm += distMeters / 1000.0
-                        }
-                    }
-                    pathPoints.add(newPoint)
+                if (!isTracking) {
+                    WalkTrackerState.lastLocation.value = location
                 }
-                lastLocation = location
             }
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
@@ -356,7 +340,7 @@ fun WalkTrackerMap(
         }
     }
 
-    // Always listen to location updates while Walks tab is active
+    // Always listen to location updates while Walks tab is active (for map display/initial centering)
     DisposableEffect(Unit) {
         try {
             locationManager.requestLocationUpdates(
@@ -368,8 +352,8 @@ fun WalkTrackerMap(
             // Get last known location for initial map centering
             val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            if (lastKnown != null) {
-                lastLocation = lastKnown
+            if (lastKnown != null && lastLocation == null) {
+                WalkTrackerState.lastLocation.value = lastKnown
             }
         } catch (e: SecurityException) {
             e.printStackTrace()
@@ -409,7 +393,7 @@ fun WalkTrackerMap(
                     val polyline = Polyline(mapView).apply {
                         outlinePaint.color = android.graphics.Color.rgb(16, 185, 129) // Emerald
                         outlinePaint.strokeWidth = 8f
-                        setPoints(pathPoints.toList())
+                        setPoints(pathPoints)
                     }
                     mapView.overlays.add(polyline)
 
@@ -483,11 +467,7 @@ fun WalkTrackerMap(
             if (!isTracking && secondsElapsed == 0L) {
                 Button(
                     onClick = {
-                        pathPoints.clear()
-                        distanceKm = 0.0
-                        secondsElapsed = 0
-                        lastLocation = null
-                        isTracking = true
+                        LocationTrackingService.startService(context)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -503,7 +483,13 @@ fun WalkTrackerMap(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Button(
-                        onClick = { isTracking = !isTracking },
+                        onClick = {
+                            if (isTracking) {
+                                LocationTrackingService.pauseTracking(context)
+                            } else {
+                                LocationTrackingService.resumeTracking(context)
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -517,7 +503,7 @@ fun WalkTrackerMap(
 
                     Button(
                         onClick = {
-                            isTracking = false
+                            LocationTrackingService.pauseTracking(context)
                             showSaveDialog = true
                         },
                         modifier = Modifier.weight(1f),
@@ -645,11 +631,8 @@ fun WalkTrackerMap(
                             notes = routeNotes
                         )
 
-                        // Reset
-                        pathPoints.clear()
-                        distanceKm = 0.0
-                        secondsElapsed = 0
-                        lastLocation = null
+                        // Stop service
+                        LocationTrackingService.stopService(context)
                         routeNotes = ""
                         showSaveDialog = false
                     }

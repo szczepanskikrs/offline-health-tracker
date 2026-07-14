@@ -15,6 +15,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.Random
+import kotlin.math.abs
 
 class HealthTrackerViewModel(private val context: Context) : ViewModel() {
     private val dbHelper = DatabaseHelper(context.applicationContext)
@@ -410,7 +411,7 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
                 // Clamp between 0.5x and 2.0x to keep portions realistic
                 val scale = rawScale.coerceIn(0.5, 2.0)
                 val scaledKcal = recipe.kcal * scale
-                val slotDiff = Math.abs(scaledKcal - slotTarget)
+                val slotDiff = abs(scaledKcal - slotTarget)
                 totalScore += slotDiff
 
                 candidate.add(ScaledRecipe(recipe, scale))
