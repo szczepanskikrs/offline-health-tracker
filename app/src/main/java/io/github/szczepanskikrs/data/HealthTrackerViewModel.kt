@@ -473,6 +473,12 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
             _weeklyShoppingList.value = dbHelper.getWeeklyShoppingList(startDate, endDate)
         }
     }
+
+    fun loadShoppingListForDates(dates: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _weeklyShoppingList.value = dbHelper.getShoppingListForDates(dates)
+        }
+    }
 }
 
 class HealthTrackerViewModelFactory(private val context: Context) : ViewModelProvider.Factory {

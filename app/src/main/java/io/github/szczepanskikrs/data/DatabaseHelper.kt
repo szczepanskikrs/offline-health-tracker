@@ -766,4 +766,42 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         cursor.close()
         return list
     }
+
+    fun getShoppingListForDates(dates: List<String>): List<Pair<String, Double>> {
+        if (dates.isEmpty()) return emptyList()
+        val list = mutableListOf<Pair<String, Double>>()
+        val placeholders = dates.joinToString(",") { "?" }
+        val selectQuery = """
+            SELECT ri.$KEY_ING_NAME, 
+                   SUM(ri.$KEY_ING_WEIGHT * COALESCE(mp.$KEY_MEAL_SCALE, 1.0) * 
+                       COALESCE(
+                           (SELECT (r.water + r.protein + r.fat + r.carbs + r.fiber + r.salt) 
+                            FROM $TABLE_RECIPES r 
+                            WHERE r.id = mp.$KEY_MEAL_RECIPE_ID) / 
+                           NULLIF((SELECT SUM(weight) 
+                                   FROM $TABLE_RECIPE_INGREDIENTS 
+                                   WHERE $KEY_ING_DISH_ID = mp.$KEY_MEAL_RECIPE_ID), 0), 
+                           1.0
+                       )
+                   )
+            FROM $TABLE_MEAL_PLAN mp
+            JOIN $TABLE_RECIPE_INGREDIENTS ri ON mp.$KEY_MEAL_RECIPE_ID = ri.$KEY_ING_DISH_ID
+            WHERE mp.$KEY_MEAL_DATE IN ($placeholders)
+            GROUP BY ri.$KEY_ING_NAME
+            ORDER BY ri.$KEY_ING_NAME ASC
+        """.trimIndent()
+
+        val db = this.readableDatabase
+        val cursor = db.rawQuery(selectQuery, dates.toTypedArray())
+
+        if (cursor.moveToFirst()) {
+            do {
+                val name = cursor.getString(0) ?: ""
+                val weight = cursor.getDouble(1)
+                list.add(Pair(name, weight))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return list
+    }
 }

@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -917,8 +918,17 @@ fun ShoppingListDialog(
         }
     }
 
-    LaunchedEffect(mondayStr, sundayStr) {
-        viewModel.loadWeeklyShoppingList(mondayStr, sundayStr)
+    val selectedDates = remember { mutableStateListOf<String>() }
+
+    // Re-initialize selectedDates when weekDays changes
+    LaunchedEffect(weekDays) {
+        selectedDates.clear()
+        selectedDates.addAll(weekDays.map { it.second })
+    }
+
+    // Load shopping list whenever the selected dates change
+    LaunchedEffect(selectedDates.toList()) {
+        viewModel.loadShoppingListForDates(selectedDates.toList())
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -941,71 +951,134 @@ fun ShoppingListDialog(
             }
         },
         text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                if (shoppingList.isEmpty()) {
-                    Text(
-                        text = "Brak składników do kupienia. Najpierw wygeneruj jadłospis na ten tydzień.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(shoppingList) { (name, weight) ->
-                            val isChecked = checkedItems.contains(name)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (isChecked) {
-                                            checkedItems.remove(name)
-                                        } else {
-                                            checkedItems.add(name)
-                                        }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Day Selection Row
+                Text(
+                    text = "Filtruj według dni:",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val polishDays = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd")
+                    weekDays.forEachIndexed { index, (_, dateStr) ->
+                        val isSelected = selectedDates.contains(dateStr)
+                        val dayName = polishDays.getOrNull(index) ?: ""
+
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    if (isSelected) {
+                                        selectedDates.remove(dateStr)
+                                    } else {
+                                        selectedDates.add(dateStr)
                                     }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                                }
+                        ) {
+                            Text(
+                                text = dayName,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                ) {
+                    if (selectedDates.isEmpty()) {
+                        Text(
+                            text = "Wybierz przynajmniej jeden dzień z tygodnia, aby wyświetlić listę.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    } else if (shoppingList.isEmpty()) {
+                        Text(
+                            text = "Brak składników do kupienia. Najpierw wygeneruj jadłospis na wybrane dni.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(shoppingList) { (name, weight) ->
+                                val isChecked = checkedItems.contains(name)
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                checkedItems.add(name)
-                                            } else {
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isChecked) {
                                                 checkedItems.remove(name)
+                                            } else {
+                                                checkedItems.add(name)
                                             }
                                         }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Checkbox(
+                                            checked = isChecked,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    checkedItems.add(name)
+                                                } else {
+                                                    checkedItems.remove(name)
+                                                }
+                                            }
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textDecoration = if (isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                                            color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                     Text(
-                                        text = name,
+                                        text = if (weight >= 1000.0) {
+                                            String.format(Locale.getDefault(), "%.2f kg", weight / 1000.0)
+                                        } else {
+                                            "${weight.toInt()} g"
+                                        },
                                         style = MaterialTheme.typography.bodyMedium,
-                                        textDecoration = if (isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-                                        color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Text(
-                                    text = if (weight >= 1000.0) {
-                                        String.format(Locale.getDefault(), "%.2f kg", weight / 1000.0)
-                                    } else {
-                                        "${weight.toInt()} g"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }
