@@ -235,8 +235,15 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
             val finalPool = if (categoryPool.isNotEmpty()) categoryPool else recipes.filter { it.id != currentEntry.recipeId }
             if (finalPool.isEmpty()) return@launch
 
-            // Pick the recipe whose base kcal is closest to target (minimizes extreme scaling)
-            val newRecipe = finalPool.sortedBy { Math.abs(it.kcal - targetKcal) }.take(10).random()
+            // Filter pool to recipes that can be scaled to targetKcal within the allowed [0.5, 2.0] scale range.
+            // This ensures we have a large variety of recipes to choose from while meeting target kcal.
+            val scaleValidPool = finalPool.filter { it.kcal > 0.0 && (targetKcal / it.kcal) in 0.5..2.0 }
+            val newRecipe = if (scaleValidPool.isNotEmpty()) {
+                scaleValidPool.random()
+            } else {
+                // Fallback to closest if no recipe fits in the [0.5, 2.0] scale range
+                finalPool.sortedBy { Math.abs(it.kcal - targetKcal) }.take(10).random()
+            }
 
             // Compute scale so the new recipe hits the same slot target kcal
             val newScale = if (newRecipe.kcal > 0) (targetKcal / newRecipe.kcal).coerceIn(0.5, 2.0) else 1.0
@@ -301,7 +308,7 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
 
                     dbHelper.clearMealPlanForRange(startDateString, endDateString)
 
-                    // To ensure diversity/variety, we keep track of recipes selected in the last 2 days
+                    // To ensure diversity/variety, we keep track of recipes selected in the last 5 days
                     val recentRecipeIds = mutableSetOf<Long>()
                     val recentHistory = mutableListOf<Set<Long>>() // list of sets for each day
 
@@ -329,11 +336,11 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
                             dbHelper.insertMealPlanEntry(currentDayString, index, scaledRecipe.recipe.id, scaledRecipe.scale)
                         }
 
-                        // Update history for variety: only avoid recipes used in the last 2 days
+                        // Update history for variety: avoid recipes used in the last 5 days
                         val dayRecipeIds = dayRecipes.map { it.recipe.id }.toSet()
                         recentHistory.add(dayRecipeIds)
                         recentRecipeIds.addAll(dayRecipeIds)
-                        if (recentHistory.size > 2) {
+                        if (recentHistory.size > 5) {
                             val removedDay = recentHistory.removeAt(0)
                             recentRecipeIds.removeAll(removedDay)
                         }
