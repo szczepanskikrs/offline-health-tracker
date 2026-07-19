@@ -5,11 +5,11 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
         private const val DATABASE_NAME = "health_tracker.db"
-        private const val DATABASE_VERSION = 7
+        private const val DATABASE_VERSION = 8
 
         // Table Names
         private const val TABLE_MEASUREMENTS = "measurements"
@@ -50,6 +50,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_RECIPE_CARBS = "carbs"
         private const val KEY_RECIPE_FIBER = "fiber"
         private const val KEY_RECIPE_SALT = "salt"
+        private const val KEY_RECIPE_WATER = "water"
 
         // Meal Plan Table Columns
         private const val KEY_MEAL_DATE = "date"
@@ -109,7 +110,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "$KEY_RECIPE_FAT REAL,"
                 + "$KEY_RECIPE_CARBS REAL,"
                 + "$KEY_RECIPE_FIBER REAL,"
-                + "$KEY_RECIPE_SALT REAL"
+                + "$KEY_RECIPE_SALT REAL,"
+                + "$KEY_RECIPE_WATER REAL DEFAULT 0.0"
                 + ")")
         db.execSQL(createRecipesTable)
 
@@ -198,6 +200,16 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 db.execSQL("ALTER TABLE $TABLE_MEAL_PLAN ADD COLUMN $KEY_MEAL_SCALE REAL DEFAULT 1.0")
             } catch (e: Exception) {
                 // Column might already exist
+            }
+        }
+        if (oldVersion < 8) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_RECIPES ADD COLUMN $KEY_RECIPE_WATER REAL DEFAULT 0.0")
+                // Re-import recipes inside current upgrade transaction to populate new column
+                val inputStream = context.assets.open("recipes.csv")
+                importRecipesFromCsvWithDb(db, inputStream)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -432,6 +444,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun importRecipesFromCsv(inputStream: java.io.InputStream) {
         val db = this.writableDatabase
+        importRecipesFromCsvWithDb(db, inputStream)
+    }
+
+    fun importRecipesFromCsvWithDb(db: SQLiteDatabase, inputStream: java.io.InputStream) {
         db.beginTransaction()
         try {
             val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream, "UTF-8"))
@@ -447,6 +463,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             val idxCarbs = headers.indexOf("Węglowodany ogółem [g]")
             val idxFiber = headers.indexOf("Błonnik pokarmowy [g]")
             val idxSalt = headers.indexOf("Sól [g]")
+            val idxWater = headers.indexOf("Woda [g]")
 
             var line = reader.readLine()
             while (line != null) {
@@ -465,6 +482,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         val carbsVal = if (idxCarbs != -1 && idxCarbs < parts.size) parts[idxCarbs].toDoubleOrNull() ?: 0.0 else 0.0
                         val fiberVal = if (idxFiber != -1 && idxFiber < parts.size) parts[idxFiber].toDoubleOrNull() ?: 0.0 else 0.0
                         val saltVal = if (idxSalt != -1 && idxSalt < parts.size) parts[idxSalt].toDoubleOrNull() ?: 0.0 else 0.0
+                        val waterVal = if (idxWater != -1 && idxWater < parts.size) parts[idxWater].toDoubleOrNull() ?: 0.0 else 0.0
 
                         val values = ContentValues().apply {
                             put(KEY_ID, idVal)
@@ -475,6 +493,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                             put(KEY_RECIPE_CARBS, carbsVal)
                             put(KEY_RECIPE_FIBER, fiberVal)
                             put(KEY_RECIPE_SALT, saltVal)
+                            put(KEY_RECIPE_WATER, waterVal)
                         }
                         db.insertWithOnConflict(TABLE_RECIPES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
                     }
@@ -665,8 +684,30 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun getIngredientsForRecipe(recipeId: Long): List<RecipeIngredient> {
         val list = mutableListOf<RecipeIngredient>()
-        val selectQuery = "SELECT * FROM $TABLE_RECIPE_INGREDIENTS WHERE $KEY_ING_DISH_ID = ? ORDER BY $KEY_ING_NAME ASC"
         val db = this.readableDatabase
+
+        // Fetch serving weight components
+        val recipeQuery = "SELECT water, protein, fat, carbs, fiber, salt FROM $TABLE_RECIPES WHERE id = ?"
+        var servingWeight = 0.0
+        val rCursor = db.rawQuery(recipeQuery, arrayOf(recipeId.toString()))
+        if (rCursor.moveToFirst()) {
+            servingWeight = rCursor.getDouble(0) + rCursor.getDouble(1) + rCursor.getDouble(2) + rCursor.getDouble(3) + rCursor.getDouble(4) + rCursor.getDouble(5)
+        }
+        rCursor.close()
+
+        // Fetch sum of raw weights
+        val rawQuery = "SELECT SUM($KEY_ING_WEIGHT) FROM $TABLE_RECIPE_INGREDIENTS WHERE $KEY_ING_DISH_ID = ?"
+        var rawWeight = 0.0
+        val rawCursor = db.rawQuery(rawQuery, arrayOf(recipeId.toString()))
+        if (rawCursor.moveToFirst()) {
+            rawWeight = rawCursor.getDouble(0)
+        }
+        rawCursor.close()
+
+        // If recipe serving weight and raw weight are available, scale ingredients to 1 serving
+        val servingScale = if (rawWeight > 0.0 && servingWeight > 0.0) servingWeight / rawWeight else 1.0
+
+        val selectQuery = "SELECT * FROM $TABLE_RECIPE_INGREDIENTS WHERE $KEY_ING_DISH_ID = ? ORDER BY $KEY_ING_NAME ASC"
         val cursor = db.rawQuery(selectQuery, arrayOf(recipeId.toString()))
 
         if (cursor.moveToFirst()) {
@@ -681,7 +722,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         id = cursor.getLong(idIdx),
                         dishId = cursor.getLong(dishIdIdx),
                         name = cursor.getString(nameIdx) ?: "",
-                        weight = cursor.getDouble(weightIdx)
+                        weight = cursor.getDouble(weightIdx) * servingScale
                     )
                 )
             } while (cursor.moveToNext())
@@ -693,7 +734,18 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     fun getWeeklyShoppingList(startDate: String, endDate: String): List<Pair<String, Double>> {
         val list = mutableListOf<Pair<String, Double>>()
         val selectQuery = """
-            SELECT ri.$KEY_ING_NAME, SUM(ri.$KEY_ING_WEIGHT * COALESCE(mp.$KEY_MEAL_SCALE, 1.0))
+            SELECT ri.$KEY_ING_NAME, 
+                   SUM(ri.$KEY_ING_WEIGHT * COALESCE(mp.$KEY_MEAL_SCALE, 1.0) * 
+                       COALESCE(
+                           (SELECT (r.water + r.protein + r.fat + r.carbs + r.fiber + r.salt) 
+                            FROM $TABLE_RECIPES r 
+                            WHERE r.id = mp.$KEY_MEAL_RECIPE_ID) / 
+                           NULLIF((SELECT SUM(weight) 
+                                   FROM $TABLE_RECIPE_INGREDIENTS 
+                                   WHERE $KEY_ING_DISH_ID = mp.$KEY_MEAL_RECIPE_ID), 0), 
+                           1.0
+                       )
+                   )
             FROM $TABLE_MEAL_PLAN mp
             JOIN $TABLE_RECIPE_INGREDIENTS ri ON mp.$KEY_MEAL_RECIPE_ID = ri.$KEY_ING_DISH_ID
             WHERE mp.$KEY_MEAL_DATE BETWEEN ? AND ?
