@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import io.github.szczepanskikrs.data.HealthTrackerViewModel
 import io.github.szczepanskikrs.data.MealPlanEntry
 import io.github.szczepanskikrs.data.RecipeIngredient
+import io.github.szczepanskikrs.data.Recipe
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
@@ -53,6 +54,7 @@ fun MealPlanScreen(
 
     var showGenerateDialog by remember { mutableStateOf(false) }
     var showShoppingList by remember { mutableStateOf(false) }
+    var activeReplacementMealEntryId by remember { mutableStateOf<Long?>(null) }
 
     // Parse week days for the selected date
     val weekDays = remember(selectedDate) { getWeekDays(selectedDate) }
@@ -220,6 +222,9 @@ fun MealPlanScreen(
                                 onReplace = {
                                     viewModel.rollAlternativeMeal(entry.id)
                                     Toast.makeText(context, "Wylosowano inny posiłek!", Toast.LENGTH_SHORT).show()
+                                },
+                                onSearchReplace = {
+                                    activeReplacementMealEntryId = entry.id
                                 }
                             )
                         }
@@ -275,6 +280,14 @@ fun MealPlanScreen(
             selectedDate = selectedDate,
             viewModel = viewModel,
             onDismiss = { showShoppingList = false }
+        )
+    }
+
+    if (activeReplacementMealEntryId != null) {
+        SearchReplaceRecipeDialog(
+            mealEntryId = activeReplacementMealEntryId!!,
+            viewModel = viewModel,
+            onDismiss = { activeReplacementMealEntryId = null }
         )
     }
 }
@@ -394,7 +407,8 @@ fun MealEntryRow(
     totalMealsCount: Int,
     viewModel: HealthTrackerViewModel,
     onToggleEaten: (Boolean) -> Unit,
-    onReplace: () -> Unit
+    onReplace: () -> Unit,
+    onSearchReplace: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -589,6 +603,15 @@ fun MealEntryRow(
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(Modifier.width(4.dp))
                             Text("Wylosuj inny")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = onSearchReplace,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Zamień")
                         }
                     }
                 }
@@ -1025,4 +1048,204 @@ fun ShoppingListDialog(
         },
         shape = RoundedCornerShape(20.dp)
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchReplaceRecipeDialog(
+    mealEntryId: Long,
+    viewModel: HealthTrackerViewModel,
+    onDismiss: () -> Unit
+) {
+    val recipes by viewModel.recipes.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredRecipes = remember(searchQuery, recipes) {
+        if (searchQuery.isBlank()) {
+            recipes
+        } else {
+            val queryWords = searchQuery.trim().lowercase().split("\\s+".toRegex())
+            recipes.filter { recipe ->
+                val nameLower = recipe.name.lowercase()
+                queryWords.all { word -> nameLower.contains(word) }
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false
+        ),
+        modifier = Modifier
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.85f),
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Zamień przepis",
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Wyszukaj przepis (np. kurczak ryż)...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Wyczyść")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (filteredRecipes.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Nie znaleziono żadnych przepisów.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val itemsToShow = filteredRecipes.take(300)
+                        items(itemsToShow, key = { it.id }) { recipe ->
+                            RecipeSearchResultItem(
+                                recipe = recipe,
+                                onClick = {
+                                    viewModel.replaceMealRecipe(mealEntryId, recipe.id)
+                                    onDismiss()
+                                }
+                            )
+                        }
+                        if (filteredRecipes.size > 300) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "... i ${filteredRecipes.size - 300} innych przepisów (zawęź wyszukiwanie)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Zamknij")
+            }
+        }
+    )
+}
+
+@Composable
+fun RecipeSearchResultItem(
+    recipe: Recipe,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = recipe.name,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${recipe.kcal.toInt()} kcal",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NutrientMiniBadge(label = "B", value = recipe.protein, color = Color(0xFFE57373))
+                    NutrientMiniBadge(label = "T", value = recipe.fat, color = Color(0xFFFFB74D))
+                    NutrientMiniBadge(label = "W", value = recipe.carbs, color = Color(0xFF64B5F6))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NutrientMiniBadge(label: String, value: Double, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(
+            text = "$label:${value.toInt()}g",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
