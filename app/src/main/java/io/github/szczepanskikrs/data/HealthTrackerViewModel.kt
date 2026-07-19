@@ -46,6 +46,9 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
     private val _mealPlan = MutableStateFlow<List<MealPlanEntry>>(emptyList())
     val mealPlan: StateFlow<List<MealPlanEntry>> = _mealPlan.asStateFlow()
 
+    private val _recipes = MutableStateFlow<List<Recipe>>(emptyList())
+    val recipes: StateFlow<List<Recipe>> = _recipes.asStateFlow()
+
     private val _recipesCount = MutableStateFlow(0)
     val recipesCount: StateFlow<Int> = _recipesCount.asStateFlow()
 
@@ -92,7 +95,9 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
             _exerciseLogs.value = dbHelper.getAllExerciseLogs()
             
             // Load recipes count and meal plan
-            _recipesCount.value = dbHelper.getAllRecipes().size
+            val allRecipes = dbHelper.getAllRecipes()
+            _recipes.value = allRecipes
+            _recipesCount.value = allRecipes.size
             _mealPlan.value = dbHelper.getMealPlanForDate(_selectedMealPlanDate.value)
         }
     }
@@ -232,6 +237,28 @@ class HealthTrackerViewModel(private val context: Context) : ViewModel() {
 
             // Pick the recipe whose base kcal is closest to target (minimizes extreme scaling)
             val newRecipe = finalPool.sortedBy { Math.abs(it.kcal - targetKcal) }.take(10).random()
+
+            // Compute scale so the new recipe hits the same slot target kcal
+            val newScale = if (newRecipe.kcal > 0) (targetKcal / newRecipe.kcal).coerceIn(0.5, 2.0) else 1.0
+
+            // Update in database
+            val db = dbHelper.writableDatabase
+            val values = android.content.ContentValues().apply {
+                put("recipe_id", newRecipe.id)
+                put("scale", newScale)
+                put("is_eaten", 0)
+            }
+            db.update("meal_plan", values, "id = ?", arrayOf(mealEntryId.toString()))
+            loadMealPlanForSelectedDate()
+        }
+    }
+
+    fun replaceMealRecipe(mealEntryId: Long, newRecipeId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentEntry = _mealPlan.value.find { it.id == mealEntryId } ?: return@launch
+            val recipes = dbHelper.getAllRecipes()
+            val newRecipe = recipes.find { it.id == newRecipeId } ?: return@launch
+            val targetKcal = currentEntry.kcal
 
             // Compute scale so the new recipe hits the same slot target kcal
             val newScale = if (newRecipe.kcal > 0) (targetKcal / newRecipe.kcal).coerceIn(0.5, 2.0) else 1.0
